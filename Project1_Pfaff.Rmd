@@ -1,0 +1,125 @@
+---
+title: "Project1_Pfaff"
+author: "Emily Pfaff"
+date: "September 23, 2018"
+output: html_document
+---
+
+# Dataset 1: Flights
+
+This figure was derived from the "flights" dataset in R, which contains on-time data for all flights that departed from New York City airports in 2013. In this analysis, I set out to determine if there was a difference in average arrival delays based on the season in which the flight occurred. I also wanted to see if these delays were further impacted by the climate of the destination airport, defined here as average snowfall per year (< or > than 15 inches of snowfall per year, on average). The top 40 destination airports (based on total number of flights from NYC in 2013) were used for this analysis. The visualization shows that (1) for winter, spring, and fall, destinations with >=15 inches annual snowfall have longer average delays, (2) fall flights have the shortest average delay of any season, though destinations with >=15 inches annual snowfall suffer more delays; and (3) summer flights have the longest average delay, but with summer snow being very unlikely, there is no difference in delay based on average snowfall at the destination.
+
+```{r}
+library(tidyverse)
+library(nycflights13)
+by_month <- flights %>%
+  mutate(season = ifelse(month %in% c(11,12,1,2,3),"Winter",ifelse(month %in% c(4,5),"Spring",ifelse(month %in% c(6,7,8),
+                                                                                                     "Summer",ifelse(month %in% c(9,10),"Fall","Nope"))))) %>%
+  filter(dest == "ATL" | dest == "BNA" | dest == "CLT" | dest == "DCA" | dest == "DFW" | dest == "FLL"
+         | dest == "IAH" | dest == "JAX" | dest == "LAS" | dest == "LAX"
+         | dest == "MCO" | dest == "MIA" | dest == "MSY"| dest == "PBI" | dest == "PHX"  | dest == "RDU" 
+         | dest == "RIC" | dest == "RSW" | dest == "SAN" | dest == "SEA" | dest == "SFO" 
+         | dest == "SJU" | dest == "TPA" | dest == "BOS" | dest == "BTV" | dest == "BUF" | dest == "CLE" | dest == "CMH" | dest == "CVG"
+         | dest == "DEN" | dest == "DTW" | dest == "MDW" | dest == "MKE" | dest == "MSP" | dest == "ORD"
+         | dest == "PIT" | dest == "SLC" | dest == "STL") %>%
+  mutate(nors = case_when(dest == "ATL" | dest == "BNA" | dest == "CLT" | dest == "DFW" | dest == "FLL"
+                          | dest == "IAD" | dest == "IAH" | dest == "JAX" | dest == "LAS" | dest == "LAX"
+                          | dest == "MCO" | dest == "MIA" | dest == "MSY"| dest == "PBI" | dest == "PHX"  | dest == "RDU" 
+                          | dest == "RIC" | dest == "RSW" | dest == "SAN" | dest == "SEA" | dest == "SFO" 
+                          | dest == "SJU" | dest == "TPA"  ~ "<= 15 in snow per year", 
+                          dest == "BOS" | dest == "BTV" | dest == "BUF" | dest == "CLE" | dest == "CMH" | dest == "CVG"
+                          | dest == "DEN" | dest == "DTW" | dest == "MDW" | dest == "MKE" | dest == "MSP" | dest == "ORD"
+                          | dest == "PIT" | dest == "SLC" | dest == "STL" | dest == "DCA" | dest == "IAD" ~ ">= 15 in snow per year", 
+                          TRUE ~ "Other")) %>%
+  group_by(nors, season) %>%
+  summarise(count = n(),
+            delay = mean(arr_delay, na.rm = TRUE))
+
+
+ggplot(data = by_month, mapping = aes(x = season, y = delay)) +
+  geom_point(aes(size = count, color = nors, stroke = 3)) +
+  scale_x_discrete(limits=c("Winter","Spring","Summer","Fall")) + 
+  labs(x = "Season", y = "Average arrival delay (mins)", color = "Snowfall at Destination", size = "Number of flights", title = "Average Arrival Delay of Flights Originating from NYC, 2013")
+```
+
+# Dataset 2: Storms
+
+This figure was derived from the "storms" dataset in dplyr, which is a subset of the NOAA Atlantic hurricane database best track data. In this analysis, I wanted to examine the differences in wind speed and rate of occurrence of the three types of storm (hurricane, tropical depression, tropical storm) over the course of the year. As one would expect, the average wind speed of hurricanes is much higher than tropical depressions or storms--however, the season is shorter, with no hurricanes occurring between January and June in this dataset. Moreover, the severity of hurricanes (average wind speed) has a distinct peak in fall (September/October) with lower average wind speeds at the beginning (June) and end (December) of the season, whereas the severity of tropical depressions and storms stays much more consistent throughout the year. In this dataset, no storms of any type occurred in February or March.
+
+
+```{r}
+by_month <- storms %>%
+  group_by(month,status) %>%
+  summarize(count = n(), avg_wind_spd = mean(wind, na.rm = TRUE))
+
+ggplot(data = by_month) + 
+  geom_point(mapping = aes(x = month, y = avg_wind_spd, size = count)) + 
+  scale_x_continuous(breaks=1:12) + 
+  facet_wrap(~ status) + 
+  labs(x = "Month", y = "Average wind speed (knots)", size = "Number of storms", title = "Average Wind Speed of Atlantic Storms by Month of Occurrence")
+```
+
+# Dataset 3: NYC Weather
+
+This figure was derived from the "weather" dataset in R, which tracks hourly meterological data recorded at NYC airports LGA, JFK, and EWR in 2013. In this analysis, I wanted to visualize the trends in temperature over the course of 2013. I created two additional layers to visualize the year's maximum daily average temperature (89.8 degrees F, in July 2013) and minimum daily average temperature (15.8 degrees F, in January 2013), shown as red dots. The smoothing line allows us to see a few temperature extremes throughout the year, such as abnormally warm days in late December and mid-January. 
+
+
+```{r}
+weatherByMonth <- weather %>% 
+  select(year, month, day, temp) %>%
+  mutate(calDate = as.Date(paste(year,month,day,sep="/"))) %>%
+  group_by(calDate) %>%
+  summarise(avgTempPerDay = mean(temp, na.rm = TRUE)) 
+
+maxTempYear <- weatherByMonth %>%
+  summarise(maxTemp = max(avgTempPerDay)) 
+
+minTempYear <- weatherByMonth %>%
+  summarise(minTemp = min(avgTempPerDay)) 
+
+ggplot() +
+  geom_line(data = weatherByMonth, mapping = aes(x = calDate, y = avgTempPerDay, group = 1), color = "blue", size = 1) + 
+  geom_point(data = maxTempYear, mapping = aes(x = as.Date("2013/7/19"), y = maxTemp, stroke = 3), color = "red") + 
+  geom_point(data = minTempYear, mapping = aes(x = as.Date("2013/1/23"), y = minTemp, stroke = 3), color = "red") + 
+  geom_smooth(data = weatherByMonth, mapping = aes(x = calDate, y = avgTempPerDay), color = "green") +
+  scale_x_date(date_breaks = "1 month", date_labels = "%m/%y") + 
+  labs(x = "Month/Year", y = "Average temperature per day (F)", title = "Average Temperature Per Day Measured at EWR, LGA, and JFK, 2013")
+
+```
+
+# Dataset 4: Cleveland-Area Demographics
+
+This figure was derived from the "midwest" dataset in R, which provides demographic information for counties in the midwest states of the United States. In this analysis, I wanted to visualize the differences in racial breakdown in the counties that make up the Cleveland metropolitan area--incidentally, my hometown. This visualization created an interesting problem in that trying to show all races on a single graph presented readability issues. Because the highest percentage ("white" in Medina County) was so much larger than the lowest percentage ("other" in Geauga County), a single y-axis scale was not workable. Viewing the breakdown as three separate graphs allows us to get a better visual understanding of the counties' demographic makeup. Cuyahoga County, where I was born (and which contains the city of Cleveland) is the most diverse with the highest percentages of non-white residents on average. Lorain County is interesting, in that they have a very high percentage of residents identifying as "other." It would be interesting to delve deeper into that county's demographics to see what race(s) make up that category there.
+
+```{r}
+library(reshape2)
+midwhite <- midwest %>%
+  filter(state == "OH",county %in% c("CUYAHOGA","GEAUGA","LAKE","LORAIN","MEDINA")) %>%
+  select(county,percwhite) %>%
+  melt(id="county")
+
+midblack <- midwest %>%
+  filter(state == "OH",county %in% c("CUYAHOGA","GEAUGA","LAKE","LORAIN","MEDINA")) %>%
+  select(county,percblack) %>%
+  melt(id="county")
+
+midother <- midwest %>%
+  filter(state == "OH",county %in% c("CUYAHOGA","GEAUGA","LAKE","LORAIN","MEDINA")) %>%
+  select(county,percamerindan,percasian,percother) %>%
+  melt(id="county")
+
+ggplot(data=midwhite, aes(x=county, y=value, fill=variable)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  scale_fill_manual(labels = c("% White"), values = "purple") + 
+  labs(x = "County", y = "% of county population", title = "Racial Breakdown of the Counties in the Cleveland Metropolitan Area",fill="Race")
+
+ggplot(data=midblack, aes(x=county, y=value, fill=variable)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  scale_fill_manual(labels = c("% Black"), values = "orange") + 
+  labs(x = "County", y = "% of county population", title = "Racial Breakdown of the Counties in the Cleveland Metropolitan Area",fill="Race")
+
+ggplot(data=midother, aes(x=county, y=value, fill=variable)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  scale_fill_manual(labels = c("% American Indian", "% Asian", "% Other"), values = c("blue", "red","green")) + 
+  labs(x = "County", y = "% of county population", title = "Racial Breakdown of the Counties in the Cleveland Metropolitan Area",fill="Race")
+```
